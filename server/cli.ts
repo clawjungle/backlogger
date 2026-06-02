@@ -47,6 +47,7 @@ function writeInitConfig(configPath: string) {
     domainPath: defaultDomainPath,
     historyPath: defaultHistoryPath,
     port: 4173,
+    basePath: '/',
   }
   writeIfMissing(configPath, `${JSON.stringify(config, null, 2)}\n`)
   writeIfMissing(defaultBacklogPath, SAMPLE_BACKLOG)

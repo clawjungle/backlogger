@@ -1,5 +1,5 @@
 {
-  "name": "backlogger",
+  "name": "@ponelat/backlogger",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -8,7 +8,9 @@
     "dev:hosted": "BACKLOGGER_VITE_BASE=${BACKLOGGER_VITE_BASE:-/backlogger/} npm run build && node --import tsx server/dev-server.ts",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "prepack": "npm run build",
+    "cli": "tsx src/cli.ts"
   },
   "dependencies": {
     "chokidar": "^4.0.3",
@@ -34,5 +36,8 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12"
+  },
+  "bin": {
+    "backlogger": "src/cli.ts"
   }
 }

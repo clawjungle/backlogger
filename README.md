@@ -11,16 +11,21 @@ Backlogger is a hosted backlog viewer.
 
 ## How to use it
 
-### Local dev
+### Init a project
 
 ```bash
-npm install
-npm run dev
+npx @ponelat/backlogger init
 ```
 
-### Hosted mode
+This writes `backlogger.conf.json` in the current directory.
 
-Run it through the host project that provides the backlog files, then open the configured `/backlogger/` route.
+### Run the server
+
+```bash
+npx @ponelat/backlogger
+```
+
+Backlogger reads `backlogger.conf.json`, then starts the viewer against the configured backlog files.
 
 ## Data model
 

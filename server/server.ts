@@ -67,14 +67,17 @@ async function start() {
 
   app.use(basePath, express.static(spaDir, { index: false }))
 
-  app.get(`${basePath}*splat`, (_req: Request, res: Response) => {
+  const serveIndex = (_req: Request, res: Response) => {
     const html = fs.readFileSync(path.join(spaDir, 'index.html'), 'utf8')
     const injected = html.replace(
       '<head>',
       `<head><script>window.__BACKLOGGER_BASE_PATH__=${JSON.stringify(basePath)}</script>`,
     )
     res.type('html').send(injected)
-  })
+  }
+
+  app.get(basePath, serveIndex)
+  app.get(`${basePath}*splat`, serveIndex)
 
   const server = http.createServer(app)
   const wss = new WebSocketServer({ server, path: `${basePath}ws` })

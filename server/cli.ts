@@ -21,8 +21,40 @@ function writeInitConfig(configPath: string) {
   console.log(`Wrote ${configPath}`)
 }
 
+function printHelp() {
+  console.log(`
+Usage: backlogger [command] [config]
+
+Commands:
+  (none)       Start the server (default)
+  init         Create a backlogger.conf.json in the current directory
+  help, --help Print this help message
+
+Arguments:
+  config       Path to config file (default: ./backlogger.conf.json)
+
+Config file options (JSON):
+  backlogPath  Path to BACKLOG.yaml  (default: ./BACKLOG.yaml)
+  domainPath   Path to DOMAIN.yaml   (default: ./DOMAIN.yaml)
+  historyPath  Path to HISTORY.yaml  (default: ./HISTORY.yaml)
+  port         Port to listen on     (default: 4173)
+  title        App title             (default: Backlogger)
+
+Examples:
+  npx @ponelat/backlogger
+  npx @ponelat/backlogger init
+  npx @ponelat/backlogger start ./my.conf.json
+`.trim())
+}
+
 async function main() {
   const [command, configArg] = process.argv.slice(2)
+
+  if (command === 'help' || command === '--help' || command === '-h') {
+    printHelp()
+    return
+  }
+
   const configPath = path.resolve(process.cwd(), configArg || defaultConfigPath)
 
   if (command === 'init') {

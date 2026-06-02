@@ -7,7 +7,7 @@
     "dev": "vite",
     "dev:hosted": "BACKLOGGER_VITE_BASE=/backlogger/ npm run build && node --import tsx server/dev-server.ts",
     "build:spa": "vite build --outDir dist/spa",
-    "build:cli": "tsc -p tsconfig.node.json",
+    "build:cli": "tsc -p tsconfig.node.json && chmod +x dist/server/cli.js",
     "build": "rm -rf dist && npm run build:cli && npm run build:spa",
     "lint": "eslint .",
     "preview": "vite preview",

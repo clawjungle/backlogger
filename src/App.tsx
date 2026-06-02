@@ -5,13 +5,12 @@ import './App.css'
 type BacklogItem = {
   id: string
   type: string
-  title: string
-  priority: number
   status: string
   tags: string[]
   parent?: string
   relates_to?: string[]
   summary?: string
+  description?: string
   notes?: string[]
 }
 
@@ -21,7 +20,7 @@ type BacklogFile = {
   items: BacklogItem[]
 }
 
-type GroupMode = 'resource' | 'concern' | 'status' | 'priority' | 'ai-theme'
+type GroupMode = 'resource' | 'concern' | 'status' | 'ai-theme' | 'epic'
 
 type DomainFile = {
   backlog_tag_mapping?: {
@@ -48,11 +47,10 @@ updated_at: 2026-06-02
 items:
   - id: JC-025
     type: epic
-    title: Add service workflow beyond callouts
-    priority: 1
     status: planned
     tags: [services, workflow, jobs, sessions, callouts]
-    summary: Add a broader service model covering jobs, sessions, callouts, sign-off, follow-ups, and service-oriented operational states.
+    summary: Broader service workflow.
+    description: Add a broader service model covering jobs, sessions, callouts, sign-off, follow-ups, and service-oriented operational states.
 `
 
 const SAMPLE_DOMAIN = `version: 1
@@ -75,7 +73,11 @@ backlog_tag_mapping:
 
 function normalizeItems(input: unknown): BacklogItem[] {
   const parsed = input as BacklogFile
-  return Array.isArray(parsed?.items) ? parsed.items : []
+  if (!Array.isArray(parsed?.items)) return []
+  return parsed.items.map((item) => ({
+    ...item,
+    summary: item.summary || item.id,
+  }))
 }
 
 function scoreSize(item: BacklogItem): 'S' | 'M' | 'L' | 'XL' {
@@ -102,7 +104,6 @@ function scoreSize(item: BacklogItem): 'S' | 'M' | 'L' | 'XL' {
 function scoreImpact(item: BacklogItem): 'Low' | 'Medium' | 'High' | 'Wide' {
   const tags = new Set(item.tags)
   let score = 0
-  if (item.priority === 1) score += 2
   if (item.type === 'epic') score += 2
   if (tags.has('services')) score += 2
   if (tags.has('customers')) score += 1
@@ -135,13 +136,13 @@ function unique(values: string[]) {
   return [...new Set(values)]
 }
 
-function groupLabel(item: BacklogItem, mode: GroupMode, domain?: DomainFile): string[] {
+function labelsForItem(item: BacklogItem, mode: GroupMode, domain?: DomainFile): string[] {
   const resources = domain?.backlog_tag_mapping?.resources ?? {}
   const concerns = domain?.backlog_tag_mapping?.concerns ?? {}
 
   if (mode === 'status') return [item.status]
-  if (mode === 'priority') return [`P${item.priority}`]
   if (mode === 'ai-theme') return [aiTheme(item)]
+  if (mode === 'epic') return [item.type === 'epic' ? 'epics' : 'non-epics']
 
   if (mode === 'resource') {
     const matched = item.tags.filter((tag) => tag in resources)
@@ -155,15 +156,19 @@ function groupLabel(item: BacklogItem, mode: GroupMode, domain?: DomainFile): st
 function App() {
   const [backlogText, setBacklogText] = useState(SAMPLE_BACKLOG)
   const [domainText, setDomainText] = useState(SAMPLE_DOMAIN)
-  const [historyText, setHistoryText] = useState('version: 1\nitems: []\n')
-  const [config, setConfig] = useState<ViewerPayload['config']>({})
+  const [, setHistoryText] = useState('version: 1\nitems: []\n')
+  const [, setConfig] = useState<ViewerPayload['config']>({})
   const [groupMode, setGroupMode] = useState<GroupMode>('resource')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedFilter, setSelectedFilter] = useState<string | null>(null)
+  const [activeItemId, setActiveItemId] = useState<string | null>(null)
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
+  const [copyStatus, setCopyStatus] = useState('')
   const [liveStatus, setLiveStatus] = useState('sample mode')
   const [revision, setRevision] = useState<number | null>(null)
+  const [filtersCollapsed, setFiltersCollapsed] = useState(false)
 
   useEffect(() => {
-    const basePath = '/backlog/'
+    const basePath = '/backlogger/'
 
     const loadState = () => {
       fetch(`${basePath}state`)
@@ -176,7 +181,7 @@ function App() {
           setRevision(payload.revision ?? null)
           setLiveStatus('live')
         })
-        .catch(() => setLiveStatus('sample mode'))
+        .catch(() => setLiveStatus('offline'))
     }
 
     loadState()
@@ -190,148 +195,206 @@ function App() {
   const domain = useMemo(() => parse(domainText) as DomainFile, [domainText])
   const items = useMemo(() => normalizeItems(backlog), [backlog])
 
-  const grouped = useMemo(() => {
-    const map = new Map<string, BacklogItem[]>()
+  const filterGroups = useMemo(() => {
+    const counts = new Map<string, number>()
     for (const item of items) {
-      for (const label of groupLabel(item, groupMode, domain)) {
-        if (!map.has(label)) map.set(label, [])
-        map.get(label)!.push(item)
+      for (const label of labelsForItem(item, groupMode, domain)) {
+        counts.set(label, (counts.get(label) ?? 0) + 1)
       }
     }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+    return [...counts.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([label, count]) => ({ label, count }))
   }, [items, groupMode, domain])
 
-  const selected = items.find((item) => item.id === selectedId) ?? items[0] ?? null
+  const visibleItems = useMemo(() => {
+    if (!selectedFilter) return items
+    return items.filter((item) => labelsForItem(item, groupMode, domain).includes(selectedFilter))
+  }, [items, selectedFilter, groupMode, domain])
 
-  const stats = useMemo(() => {
-    const total = items.length
-    const epics = items.filter((i) => i.type === 'epic').length
-    const p1 = items.filter((i) => i.priority === 1).length
-    const wideImpact = items.filter((i) => scoreImpact(i) === 'Wide').length
-    return { total, epics, p1, wideImpact }
-  }, [items])
+  const activeItem = visibleItems.find((item) => item.id === activeItemId) ?? visibleItems[0] ?? null
+
+  useEffect(() => {
+    if (!activeItem && activeItemId) setActiveItemId(null)
+  }, [activeItem, activeItemId])
+
+  const selectedItems = useMemo(() => {
+    const selectedSet = new Set(selectedItemIds)
+    return items.filter((item) => selectedSet.has(item.id))
+  }, [items, selectedItemIds])
+
+  const epicCount = useMemo(() => items.filter((item) => item.type === 'epic').length, [items])
+
+  function toggleSelection(itemId: string) {
+    setSelectedItemIds((current) => (
+      current.includes(itemId)
+        ? current.filter((id) => id !== itemId)
+        : [...current, itemId]
+    ))
+  }
+
+  function clearAll() {
+    setSelectedFilter(null)
+    setSelectedItemIds([])
+    setActiveItemId(null)
+    setCopyStatus('')
+  }
+
+  function toggleEpicFilter() {
+    setGroupMode('epic')
+    setSelectedFilter((current) => current === 'epics' ? null : 'epics')
+  }
+
+  async function copySelected() {
+    if (!selectedItems.length) {
+      setCopyStatus('select some items first')
+      return
+    }
+
+    const text = selectedItems
+      .map((item) => `${item.id}: ${item.summary || item.id}`)
+      .join('\n')
+
+    await navigator.clipboard.writeText(text)
+    setCopyStatus(`copied ${selectedItems.length} item${selectedItems.length === 1 ? '' : 's'}`)
+    window.setTimeout(() => setCopyStatus(''), 2000)
+  }
 
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">Backlogger</p>
-          <h1>Backlog visualizer</h1>
-          <p className="subtle">
-            Group by domain, concerns, or ephemeral AI themes, with live file watching from the host project.
-          </p>
+    <div className="app-shell flat-shell">
+      <header className="topbar flat-topbar">
+        <div className="topbar-left">
+          <h1>Backlogger</h1>
+          <label className="toolbar-field">
+            <span>Filter lens</span>
+            <select value={groupMode} onChange={(e) => {
+              setGroupMode(e.target.value as GroupMode)
+              setSelectedFilter(null)
+            }}>
+              <option value="resource">Resource</option>
+              <option value="concern">Concern</option>
+              <option value="status">Status</option>
+              <option value="ai-theme">AI theme</option>
+              <option value="epic">Epic</option>
+            </select>
+          </label>
+          <button type="button" className={liveStatus === 'live' ? 'toolbar-chip ok' : 'toolbar-chip'}>
+            {liveStatus}
+          </button>
+          <button type="button" className="toolbar-chip" onClick={() => setSelectedFilter(null)}>
+            {visibleItems.length} items
+          </button>
+          <button type="button" className={groupMode === 'epic' && selectedFilter === 'epics' ? 'toolbar-chip active' : 'toolbar-chip'} onClick={toggleEpicFilter}>
+            {epicCount} epics
+          </button>
+          <button type="button" className="toolbar-chip" onClick={clearAll}>
+            Clear all
+          </button>
+          <button type="button" className="toolbar-chip primary" onClick={() => void copySelected()}>
+            Copy selected ({selectedItems.length})
+          </button>
+          {copyStatus ? <span className="toolbar-note">{copyStatus}</span> : null}
         </div>
-        <div className="stats">
-          <div><strong>{stats.total}</strong><span>items</span></div>
-          <div><strong>{stats.epics}</strong><span>epics</span></div>
-          <div><strong>{stats.p1}</strong><span>p1 items</span></div>
-          <div><strong>{stats.wideImpact}</strong><span>wide impact</span></div>
+        <div className="topbar-right">
+          <button type="button" className="toolbar-chip" onClick={() => setFiltersCollapsed((value) => !value)}>
+            {filtersCollapsed ? 'Show filters' : 'Hide filters'}
+          </button>
+          <span className="toolbar-note">rev {revision ?? 'n/a'}</span>
         </div>
       </header>
 
-      <section className="controls">
-        <label>
-          Group by
-          <select value={groupMode} onChange={(e) => setGroupMode(e.target.value as GroupMode)}>
-            <option value="resource">Resource</option>
-            <option value="concern">Concern</option>
-            <option value="status">Status</option>
-            <option value="priority">Priority</option>
-            <option value="ai-theme">AI theme</option>
-          </select>
-        </label>
-        <div className="config-strip">
-          <span className="live-state">{liveStatus}</span>
-          <span>backlog: {config.backlogPath || 'sample'}</span>
-          <span>domain: {config.domainPath || 'sample'}</span>
-          <span>history: {config.historyPath || 'sample'}</span>
-          <span>rev: {revision ?? 'n/a'}</span>
-        </div>
-      </section>
-
-      <section className="workspace">
-        <aside className="left-column">
-          <div className="panel">
-            <div className="panel-head">
-              <h2>Backlog groups</h2>
-              <span>{grouped.length}</span>
+      <section className={filtersCollapsed ? 'layout layout-collapsed' : 'layout'}>
+        {!filtersCollapsed && (
+          <aside className="filters-column plain-column">
+            <div className="column-head">
+              <h2>Filters</h2>
+              <span>{filterGroups.length}</span>
             </div>
-            <div className="groups">
-              {grouped.map(([label, groupItems]) => (
-                <div key={label} className="group-card">
-                  <div className="group-head">
-                    <h3>{label}</h3>
-                    <span>{groupItems.length}</span>
-                  </div>
-                  <ul>
-                    {groupItems
-                      .slice()
-                      .sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id))
-                      .map((item) => (
-                        <li key={`${label}-${item.id}`}>
-                          <button type="button" onClick={() => setSelectedId(item.id)}>
-                            <span className="item-id">{item.id}</span>
-                            <span className="item-title">{item.title}</span>
-                            <span className={`pill pill-p${item.priority}`}>P{item.priority}</span>
-                          </button>
-                        </li>
-                      ))}
-                  </ul>
-                </div>
+            <div className="filter-list">
+              <button
+                type="button"
+                className={!selectedFilter ? 'filter-chip active' : 'filter-chip'}
+                onClick={() => setSelectedFilter(null)}
+              >
+                <span>all items</span>
+                <span>{items.length}</span>
+              </button>
+              {filterGroups.map((group) => (
+                <button
+                  key={group.label}
+                  type="button"
+                  className={selectedFilter === group.label ? 'filter-chip active' : 'filter-chip'}
+                  onClick={() => setSelectedFilter(group.label)}
+                >
+                  <span>{group.label}</span>
+                  <span>{group.count}</span>
+                </button>
               ))}
             </div>
-          </div>
-        </aside>
+          </aside>
+        )}
 
-        <main className="main-column">
-          <div className="panel detail-panel">
-            <div className="panel-head">
-              <h2>Item detail</h2>
-              {selected && <span>{selected.id}</span>}
-            </div>
-            {selected ? (
-              <div className="detail-body">
-                <h3>{selected.title}</h3>
-                <div className="meta-row">
-                  <span className="pill">{selected.type}</span>
-                  <span className={`pill pill-p${selected.priority}`}>priority {selected.priority}</span>
-                  <span className="pill">{selected.status}</span>
-                  <span className="pill">size {scoreSize(selected)}</span>
-                  <span className="pill">impact {scoreImpact(selected)}</span>
-                </div>
-                {selected.summary && <p className="summary">{selected.summary}</p>}
-                <div className="tag-row">
-                  {selected.tags.map((tag) => (
-                    <span key={tag} className="tag">{tag}</span>
-                  ))}
-                </div>
-                {selected.parent && <p><strong>Parent:</strong> {selected.parent}</p>}
-                {selected.relates_to?.length ? (
-                  <p><strong>Related:</strong> {selected.relates_to.join(', ')}</p>
-                ) : null}
-              </div>
-            ) : (
-              <p className="empty">No backlog items loaded yet.</p>
-            )}
+        <main className="list-column plain-column">
+          <div className="column-head">
+            <h2>Backlog</h2>
+            <span>{selectedFilter ? `${selectedFilter}` : 'file order'}</span>
           </div>
-
-          <div className="panel editors">
-            <div>
-              <div className="panel-head"><h2>Backlog YAML</h2></div>
-              <textarea value={backlogText} onChange={(e) => setBacklogText(e.target.value)} spellCheck={false} />
-            </div>
-            <div>
-              <div className="panel-head"><h2>Domain YAML</h2></div>
-              <textarea value={domainText} onChange={(e) => setDomainText(e.target.value)} spellCheck={false} />
-            </div>
-          </div>
-          <div className="panel editors single">
-            <div>
-              <div className="panel-head"><h2>History YAML</h2></div>
-              <textarea value={historyText} onChange={(e) => setHistoryText(e.target.value)} spellCheck={false} />
-            </div>
+          <div className="flat-list">
+            {visibleItems.map((item, index) => {
+              const selectedForCopy = selectedItemIds.includes(item.id)
+              const active = activeItem?.id === item.id
+              return (
+                <div key={item.id} className={active ? 'flat-item active' : 'flat-item'}>
+                  <label className="select-box">
+                    <input
+                      type="checkbox"
+                      checked={selectedForCopy}
+                      onChange={() => toggleSelection(item.id)}
+                    />
+                  </label>
+                  <button type="button" className="flat-item-button" onClick={() => setActiveItemId(item.id)}>
+                    <span className="flat-order">{index + 1}</span>
+                    <span className="flat-content">
+                      <span className="flat-title">{item.summary || item.id}</span>
+                      <span className="flat-meta">{item.id} · {item.type} · {item.status}</span>
+                    </span>
+                  </button>
+                </div>
+              )
+            })}
           </div>
         </main>
+
+        <aside className="detail-column plain-column">
+          <div className="column-head">
+            <h2>Details</h2>
+            {activeItem ? <span>{activeItem.id}</span> : <span>none</span>}
+          </div>
+          {activeItem ? (
+            <div className="detail-body">
+              <h3>{activeItem.summary || activeItem.id}</h3>
+              <div className="meta-row">
+                <span className="pill">{activeItem.id}</span>
+                <span className="pill">{activeItem.type}</span>
+                <span className="pill">{activeItem.status}</span>
+                <span className="pill">size {scoreSize(activeItem)}</span>
+                <span className="pill">impact {scoreImpact(activeItem)}</span>
+              </div>
+              {activeItem.description && <p className="description">{activeItem.description}</p>}
+              <div className="tag-row">
+                {activeItem.tags.map((tag) => (
+                  <span key={tag} className="tag">{tag}</span>
+                ))}
+              </div>
+              {activeItem.parent && <p><strong>Parent:</strong> {activeItem.parent}</p>}
+              {activeItem.relates_to?.length ? (
+                <p><strong>Related:</strong> {activeItem.relates_to.join(', ')}</p>
+              ) : null}
+            </div>
+          ) : (
+            <p className="empty">No backlog item selected.</p>
+          )}
+        </aside>
       </section>
     </div>
   )

@@ -10,7 +10,7 @@ const distDir = path.join(root, 'dist')
 const backlogPath = process.env.BACKLOGGER_BACKLOG_PATH || ''
 const domainPath = process.env.BACKLOGGER_DOMAIN_PATH || ''
 const historyPath = process.env.BACKLOGGER_HISTORY_PATH || ''
-const basePath = (process.env.BACKLOGGER_BASE_PATH || '/backlog/').replace(/\/+$/, '/')
+const basePath = (process.env.BACKLOGGER_BASE_PATH || '/backlogger/').replace(/\/+$/, '/')
 const port = Number(process.env.BACKLOGGER_PORT || 4173)
 
 function readSafe(filePath: string) {
@@ -48,20 +48,23 @@ async function start() {
   const app = express()
   let revision = Date.now()
 
-  app.get(`${basePath}state`, (_req: Request, res: Response) => {
+  app.get('/backlogger/state', (_req: Request, res: Response) => {
     res.json({
       ...payload(),
       revision,
     })
   })
 
-  app.use(basePath, express.static(distDir, { index: 'index.html' }))
+  app.use('/backlogger/assets', express.static(path.join(distDir, 'assets'), { fallthrough: true }))
+  app.get('/backlogger/favicon.svg', (_req: Request, res: Response) => {
+    res.sendFile(path.join(distDir, 'favicon.svg'))
+  })
 
   app.get(basePath, (_req: Request, res: Response) => {
     res.sendFile(path.join(distDir, 'index.html'))
   })
 
-  app.get(/^\/backlog\/.*/, (_req: Request, res: Response) => {
+  app.get(/^\/backlogger\/(?!assets\/|favicon\.svg$|state$).*/, (_req: Request, res: Response) => {
     res.sendFile(path.join(distDir, 'index.html'))
   })
 

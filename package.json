@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "dev:hosted": "npm run build && node --import tsx server/dev-server.ts",
+    "dev:hosted": "BACKLOGGER_VITE_BASE=${BACKLOGGER_VITE_BASE:-/backlogger/} npm run build && node --import tsx server/dev-server.ts",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

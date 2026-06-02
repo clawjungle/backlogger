@@ -55,7 +55,7 @@ async function start() {
   const app = express()
   let revision = Date.now()
 
-  app.get('/backlogger/state', (_req: Request, res: Response) => {
+  app.get('/state', (_req: Request, res: Response) => {
     res.json({
       ...payload(),
       revision,

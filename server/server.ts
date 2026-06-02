@@ -65,7 +65,7 @@ async function start() {
     res.json({ ...payload(), revision })
   })
 
-  app.use(basePath, express.static(spaDir))
+  app.use(basePath, express.static(spaDir, { index: false }))
 
   app.get(`${basePath}*splat`, (_req: Request, res: Response) => {
     const html = fs.readFileSync(path.join(spaDir, 'index.html'), 'utf8')

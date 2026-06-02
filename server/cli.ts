@@ -9,16 +9,48 @@ const defaultBacklogPath = path.join(root, 'BACKLOG.yaml')
 const defaultDomainPath = path.join(root, 'DOMAIN.yaml')
 const defaultHistoryPath = path.join(root, 'HISTORY.yaml')
 
+const SAMPLE_BACKLOG = `\
+version: 1
+updated_at: ${new Date().toISOString().slice(0, 10)}
+items:
+  - id: BL-001
+    type: feature
+    status: planned
+    tags: [ui, workflow]
+    summary: Example backlog item
+    description: Replace this with your real backlog items.
+`
+
+const SAMPLE_DOMAIN = `\
+version: 1
+backlog_tag_mapping:
+  resources:
+    ui: frontend
+    api: backend
+  concerns:
+    workflow: workflow
+    performance: performance
+`
+
+function writeIfMissing(filePath: string, content: string) {
+  if (fs.existsSync(filePath)) {
+    console.log(`Skipped (exists) ${filePath}`)
+  } else {
+    fs.writeFileSync(filePath, content)
+    console.log(`Wrote ${filePath}`)
+  }
+}
+
 function writeInitConfig(configPath: string) {
   const config = {
     backlogPath: defaultBacklogPath,
     domainPath: defaultDomainPath,
     historyPath: defaultHistoryPath,
-    basePath: '/backlogger/',
     port: 4173,
   }
-  fs.writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`)
-  console.log(`Wrote ${configPath}`)
+  writeIfMissing(configPath, `${JSON.stringify(config, null, 2)}\n`)
+  writeIfMissing(defaultBacklogPath, SAMPLE_BACKLOG)
+  writeIfMissing(defaultDomainPath, SAMPLE_DOMAIN)
 }
 
 function printHelp() {

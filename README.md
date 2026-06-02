@@ -1,73 +1,44 @@
-# React + TypeScript + Vite
+# Backlogger
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Backlogger is a hosted backlog viewer for the Jobcards project.
 
-Currently, two official plugins are available:
+It reads these host-owned files from `jobcards`:
+- `BACKLOG.yaml`
+- `HISTORY.yaml`
+- `DOMAIN.yaml`
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## What it does
 
-## React Compiler
+- shows the backlog as a flat, ordered list
+- supports filter lenses like resource, concern, status, AI theme, and epic
+- lets you select items and copy them for AI handoff
+- shows item details beside the list
+- runs under `/backlogger/` when hosted by `jobcards`
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## How to use it
 
-## Expanding the ESLint configuration
+### Local dev
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+From this repo:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Hosted mode
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+From `jobcards`:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+./dev.sh start backlogger
 ```
+
+Then open:
+- `https://dev.ponelat.com/backlogger/`
+
+## Config
+
+Hosted mode reads its file paths from `jobcards/backlogger.config.json`.
+
+The app expects `summary` as the short primary label and `description` for fuller detail.

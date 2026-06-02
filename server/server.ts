@@ -61,18 +61,23 @@ async function start() {
   let revision = Date.now()
   const clients = new Set<import('ws').WebSocket>()
 
-  app.get('/state', (_req: Request, res: Response) => {
+  app.get(`${basePath}state`, (_req: Request, res: Response) => {
     res.json({ ...payload(), revision })
   })
 
-  app.use(express.static(spaDir))
+  app.use(basePath, express.static(spaDir))
 
-  app.get('*splat', (_req: Request, res: Response) => {
-    res.sendFile(path.join(spaDir, 'index.html'))
+  app.get(`${basePath}*splat`, (_req: Request, res: Response) => {
+    const html = fs.readFileSync(path.join(spaDir, 'index.html'), 'utf8')
+    const injected = html.replace(
+      '<head>',
+      `<head><script>window.__BACKLOGGER_BASE_PATH__=${JSON.stringify(basePath)}</script>`,
+    )
+    res.type('html').send(injected)
   })
 
   const server = http.createServer(app)
-  const wss = new WebSocketServer({ server, path: '/ws' })
+  const wss = new WebSocketServer({ server, path: `${basePath}ws` })
 
   wss.on('connection', (ws) => {
     clients.add(ws)

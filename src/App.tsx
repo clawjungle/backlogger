@@ -171,8 +171,10 @@ function App() {
     let ws: WebSocket | null = null
     let dead = false
 
+    const base: string = (window as unknown as Record<string, unknown>).__BACKLOGGER_BASE_PATH__ as string || '/'
+
     const loadState = () => {
-      fetch('/state')
+      fetch(`${base}state`)
         .then((res) => res.json())
         .then((payload: ViewerPayload) => {
           setBacklogText(payload.backlogText || SAMPLE_BACKLOG)
@@ -188,7 +190,7 @@ function App() {
     const connect = () => {
       if (dead) return
       const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
-      ws = new WebSocket(`${proto}//${location.host}/ws`)
+      ws = new WebSocket(`${proto}//${location.host}${base}ws`)
       ws.onopen = () => loadState()
       ws.onmessage = () => loadState()
       ws.onerror = () => setLiveStatus('offline')

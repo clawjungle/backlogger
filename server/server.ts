@@ -21,7 +21,7 @@ const baseDir = path.dirname(configPath)
 const backlogPath = String(config.backlogPath || path.join(baseDir, 'BACKLOG.yaml'))
 const domainPath = String(config.domainPath || path.join(baseDir, 'DOMAIN.yaml'))
 const historyPath = String(config.historyPath || path.join(baseDir, 'HISTORY.yaml'))
-const basePath = String(config.basePath || '/backlogger/').replace(/\/+$/, '/') + '/'
+const basePath = String(config.basePath || '/').replace(/\/+$/, '/') + '/'
 const port = Number(config.port || 4173)
 const title = String(config.title || 'Backlogger')
 
@@ -60,6 +60,10 @@ async function start() {
       ...payload(),
       revision,
     })
+  })
+
+  app.get('/', (_req: Request, res: Response) => {
+    res.status(404).send('SPA is hosted separately')
   })
 
   const watchTargets = [configPath, backlogPath, domainPath, historyPath].filter(Boolean)

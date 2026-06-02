@@ -168,10 +168,8 @@ function App() {
   const [filtersCollapsed, setFiltersCollapsed] = useState(false)
 
   useEffect(() => {
-    const basePath = '/backlogger/'
-
     const loadState = () => {
-      fetch(`${basePath}state`)
+      fetch('/state')
         .then((res) => res.json())
         .then((payload: ViewerPayload) => {
           setBacklogText(payload.backlogText || SAMPLE_BACKLOG)

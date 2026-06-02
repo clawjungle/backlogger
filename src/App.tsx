@@ -168,6 +168,9 @@ function App() {
   const [filtersCollapsed, setFiltersCollapsed] = useState(false)
 
   useEffect(() => {
+    let ws: WebSocket | null = null
+    let dead = false
+
     const loadState = () => {
       fetch('/state')
         .then((res) => res.json())
@@ -182,10 +185,23 @@ function App() {
         .catch(() => setLiveStatus('offline'))
     }
 
-    loadState()
-    const interval = window.setInterval(loadState, 1500)
+    const connect = () => {
+      if (dead) return
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:'
+      ws = new WebSocket(`${proto}//${location.host}/ws`)
+      ws.onopen = () => loadState()
+      ws.onmessage = () => loadState()
+      ws.onerror = () => setLiveStatus('offline')
+      ws.onclose = () => {
+        setLiveStatus('offline')
+        if (!dead) window.setTimeout(connect, 2000)
+      }
+    }
+
+    connect()
     return () => {
-      window.clearInterval(interval)
+      dead = true
+      ws?.close()
     }
   }, [])
 
